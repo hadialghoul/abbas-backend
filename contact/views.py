@@ -17,11 +17,19 @@ def submit_contact_form(request):
         # Parse JSON data from request
         data = json.loads(request.body)
         
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f'Received data: {data}')
+        
         # Extract form fields
         name = data.get('name', '').strip()
         email = data.get('email', '').strip()
         mobile = data.get('mobile', '').strip()
         service = data.get('service', '').strip()
+        
+        # Debug: log extracted values
+        logger.info(f'Extracted - name: {name}, email: {email}, mobile: {mobile}, service: {service}')
         
         # Validate required fields
         if not name or not email or not mobile or not service:
