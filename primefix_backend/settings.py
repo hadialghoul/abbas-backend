@@ -90,31 +90,16 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS settings
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://localhost",
-    "http://127.0.0.1",
-]
-
-# Allow all origins for development (change in production)
+# CORS settings - Allow all origins (set to True in production)
 CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'True') == 'True'
 
-# Add your Vercel domain here for production
+# If you want to restrict to specific origins, set CORS_ALLOW_ALL_ORIGINS=False and use this:
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://localhost",
     "http://127.0.0.1",
 ]
-
-# Add your Vercel domain - replace with your actual Vercel URL
-if not CORS_ALLOW_ALL_ORIGINS:
-    vercel_url = os.environ.get('VERCEL_URL', '')
-    if vercel_url:
-        CORS_ALLOWED_ORIGINS.append(f'https://{vercel_url}')
-        CORS_ALLOWED_ORIGINS.append(f'http://{vercel_url}')
 
 # Email configuration for GoDaddy
 # Using GoDaddy's own SMTP server (doesn't require SMTP AUTH to be enabled)
