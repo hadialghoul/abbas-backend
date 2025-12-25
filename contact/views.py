@@ -35,7 +35,7 @@ def submit_contact_form(request):
         if not name or not email or not mobile or not service:
             return JsonResponse({
                 'success': False,
-                'message': 'All fields are required.'
+                'message': f'All fields are required. Received: name="{name}", email="{email}", mobile="{mobile}", service="{service}"'
             }, status=400)
         
         # Email subject
@@ -81,10 +81,10 @@ def submit_contact_form(request):
                 'message': f'Failed to send email: {str(e)}'
             }, status=500)
             
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         return JsonResponse({
             'success': False,
-            'message': 'Invalid request data.'
+            'message': f'Invalid JSON data. Error: {str(e)}, Body: {request.body.decode("utf-8")[:200]}'
         }, status=400)
     except Exception as e:
         return JsonResponse({
