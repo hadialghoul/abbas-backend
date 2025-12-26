@@ -18,7 +18,14 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-chang
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',') if os.environ.get('ALLOWED_HOSTS') else ['*']
+# ALLOWED_HOSTS - Django doesn't support wildcards like *.onrender.com
+# So we'll use * to allow all hosts (for Render deployment)
+allowed_hosts_str = os.environ.get('ALLOWED_HOSTS', '*')
+if '*' in allowed_hosts_str or 'onrender.com' in allowed_hosts_str:
+    # Accept all hosts for Render deployment
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_str.split(',')]
 
 
 # Application definition
