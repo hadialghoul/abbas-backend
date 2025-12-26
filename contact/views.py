@@ -1,21 +1,28 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 from django.core.mail import send_mail
 from django.conf import settings
 import json
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
 def submit_contact_form(request):
     """
     Handle contact form submissions and send email.
     """
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'message': 'Only POST method is allowed.'
+        }, status=405)
+    
     try:
-        # Parse JSON data from request
-        data = json.loads(request.body)
+        # Parse JSON data from request body
+        body = request.body
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+        data = json.loads(body)
         
         # Debug logging
         import logging
@@ -82,13 +89,15 @@ def submit_contact_form(request):
             }, status=500)
             
     except json.JSONDecodeError as e:
+        body_str = request.body.decode('utf-8') if isinstance(request.body, bytes) else str(request.body)
         return JsonResponse({
             'success': False,
-            'message': f'Invalid JSON data. Error: {str(e)}, Body: {request.body.decode("utf-8")[:200]}'
+            'message': f'Invalid JSON data. Error: {str(e)}, Body: {body_str[:200]}'
         }, status=400)
     except Exception as e:
+        import traceback
         return JsonResponse({
             'success': False,
-            'message': 'An error occurred. Please try again later.'
+            'message': f'An error occurred: {str(e)}'
         }, status=500)
 
