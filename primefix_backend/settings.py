@@ -109,17 +109,17 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Email configuration for GoDaddy
-# Using GoDaddy's own SMTP server (doesn't require SMTP AUTH to be enabled)
+# Try port 587 with TLS (more reliable for cloud hosting)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtpout.secureserver.net'  # GoDaddy's SMTP server
-EMAIL_PORT = 465
-EMAIL_USE_SSL = True
-EMAIL_USE_TLS = False
+EMAIL_PORT = 587  # Changed from 465 to 587
+EMAIL_USE_SSL = False
+EMAIL_USE_TLS = True  # Changed to TLS
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'info@primefixusa.com')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'Primefixusa@11274')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'info@primefixusa.com')
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', 'info@primefixusa.com')
-EMAIL_TIMEOUT = 10  # 10 second timeout for email sending
+EMAIL_TIMEOUT = 15  # Increased timeout to 15 seconds
 
 # Microsoft Email Setup Instructions:
 # 1. EMAIL_HOST_USER: Enter your full Microsoft email address (e.g., 'yourname@outlook.com')
