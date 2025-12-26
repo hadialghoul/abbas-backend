@@ -77,34 +77,33 @@ def submit_contact_form(request):
         This is an automated message from your website contact form.
         """
         
-        # Send email with timeout protection
-        try:
-            logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[settings.RECIPIENT_EMAIL],
-                fail_silently=False,
-            )
-            
-            logger.info('Email sent successfully')
-            return JsonResponse({
-                'success': True,
-                'message': 'Thank you for your submission! We will get back to you soon.'
-            }, status=200)
-            
-        except Exception as e:
-            # Log the error for debugging
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f'Email send error: {str(e)}', exc_info=True)
-            
-            # Return error details
-            return JsonResponse({
-                'success': False,
-                'message': f'Failed to send email: {str(e)}'
-            }, status=500)
+        # Send email with timeout protection - use threading to avoid blocking
+        import threading
+        
+        def send_email_async():
+            try:
+                logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[settings.RECIPIENT_EMAIL],
+                    fail_silently=False,
+                )
+                logger.info('Email sent successfully')
+            except Exception as e:
+                logger.error(f'Email send error: {str(e)}', exc_info=True)
+        
+        # Start email sending in background thread
+        email_thread = threading.Thread(target=send_email_async)
+        email_thread.daemon = True
+        email_thread.start()
+        
+        # Return success immediately (don't wait for email)
+        return JsonResponse({
+            'success': True,
+            'message': 'Thank you for your submission! We will get back to you soon.'
+        }, status=200)
             
     except json.JSONDecodeError as e:
         body_str = request.body.decode('utf-8') if isinstance(request.body, bytes) else str(request.body)
