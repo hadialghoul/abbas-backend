@@ -77,8 +77,9 @@ def submit_contact_form(request):
         This is an automated message from your website contact form.
         """
         
-        # Send email
+        # Send email with timeout protection
         try:
+            logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
             send_mail(
                 subject=subject,
                 message=message,
@@ -87,6 +88,7 @@ def submit_contact_form(request):
                 fail_silently=False,
             )
             
+            logger.info('Email sent successfully')
             return JsonResponse({
                 'success': True,
                 'message': 'Thank you for your submission! We will get back to you soon.'
@@ -96,9 +98,9 @@ def submit_contact_form(request):
             # Log the error for debugging
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f'Email send error: {str(e)}')
+            logger.error(f'Email send error: {str(e)}', exc_info=True)
             
-            # Return error details (remove in production for security)
+            # Return error details
             return JsonResponse({
                 'success': False,
                 'message': f'Failed to send email: {str(e)}'
@@ -111,7 +113,10 @@ def submit_contact_form(request):
             'message': f'Invalid JSON data. Error: {str(e)}, Body: {body_str[:200]}'
         }, status=400)
     except Exception as e:
+        import logging
         import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f'Unexpected error: {str(e)}', exc_info=True)
         return JsonResponse({
             'success': False,
             'message': f'An error occurred: {str(e)}'

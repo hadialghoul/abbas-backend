@@ -119,6 +119,7 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'info@primefixusa.com')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'Primefixusa@11274')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'info@primefixusa.com')
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', 'info@primefixusa.com')
+EMAIL_TIMEOUT = 10  # 10 second timeout for email sending
 
 # Microsoft Email Setup Instructions:
 # 1. EMAIL_HOST_USER: Enter your full Microsoft email address (e.g., 'yourname@outlook.com')
