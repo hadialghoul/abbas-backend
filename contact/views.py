@@ -7,14 +7,29 @@ import json
 
 
 @csrf_exempt
+def test_endpoint(request):
+    """Test endpoint to verify routing works"""
+    return JsonResponse({
+        'success': True,
+        'message': 'Backend is working!',
+        'method': request.method
+    })
+
+
+@csrf_exempt
 def submit_contact_form(request):
     """
     Handle contact form submissions and send email.
     """
+    # Log that we received the request
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f'Request received - Method: {request.method}, Path: {request.path}')
+    
     if request.method != 'POST':
         return JsonResponse({
             'success': False,
-            'message': 'Only POST method is allowed.'
+            'message': f'Only POST method is allowed. Received: {request.method}'
         }, status=405)
     
     try:
