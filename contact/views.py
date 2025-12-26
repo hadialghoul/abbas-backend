@@ -24,9 +24,10 @@ def submit_contact_form(request):
     # Log that we received the request
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f'Request received - Method: {request.method}, Path: {request.path}')
+    logger.info(f'=== VIEW CALLED === Method: {request.method}, Path: {request.path}, Content-Type: {request.content_type}')
     
     if request.method != 'POST':
+        logger.warning(f'Wrong method: {request.method}')
         return JsonResponse({
             'success': False,
             'message': f'Only POST method is allowed. Received: {request.method}'
