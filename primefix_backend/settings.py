@@ -119,7 +119,7 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', EMAIL_HOST_USER)
-EMAIL_TIMEOUT = 15  # 15 second timeout
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '8'))
 
 # Microsoft Email Setup Instructions:
 # 1. EMAIL_HOST_USER: Enter your full Microsoft email address (e.g., 'yourname@outlook.com')

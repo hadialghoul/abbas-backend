@@ -4,6 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core.mail import BadHeaderError
+from django.core.mail import get_connection, EmailMessage
 from smtplib import SMTPException
 import json
 import logging
@@ -88,13 +89,15 @@ def submit_contact_form(request):
         # Send synchronously so API response reflects real delivery status.
         # If SMTP fails, return an error instead of a false success.
         logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
-        sent_count = send_mail(
+        connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
+        email_message = EmailMessage(
             subject=subject,
-            message=message,
+            body=message,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[settings.RECIPIENT_EMAIL],
-            fail_silently=False,
+            to=[settings.RECIPIENT_EMAIL],
+            connection=connection,
         )
+        sent_count = email_message.send(fail_silently=False)
         if sent_count < 1:
             logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
             return JsonResponse({

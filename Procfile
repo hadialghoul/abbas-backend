@@ -1,3 +1,3 @@
-web: gunicorn primefix_backend.wsgi --log-file -
+web: gunicorn primefix_backend.wsgi --log-file - --timeout 60
 
 
