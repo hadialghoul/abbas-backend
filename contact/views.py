@@ -88,13 +88,19 @@ def submit_contact_form(request):
         # Send synchronously so API response reflects real delivery status.
         # If SMTP fails, return an error instead of a false success.
         logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
-        send_mail(
+        sent_count = send_mail(
             subject=subject,
             message=message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[settings.RECIPIENT_EMAIL],
             fail_silently=False,
         )
+        if sent_count < 1:
+            logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
+            return JsonResponse({
+                'success': False,
+                'message': 'We could not confirm email delivery. Please try again shortly.'
+            }, status=500)
         logger.info('Email sent successfully')
 
         return JsonResponse({

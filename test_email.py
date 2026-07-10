@@ -21,14 +21,18 @@ print(f"RECIPIENT_EMAIL: {settings.RECIPIENT_EMAIL}")
 print("-" * 50)
 
 try:
-    send_mail(
+    sent_count = send_mail(
         subject='Test Email from Primefix Website',
         message='This is a test email from your website contact form.',
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[settings.RECIPIENT_EMAIL],
         fail_silently=False,
     )
-    print("SUCCESS! Email sent successfully!")
+    if sent_count < 1:
+        print("ERROR: SMTP call finished but 0 emails were accepted by the mail server.")
+        print("This usually means the recipient/from values are empty or invalid.")
+    else:
+        print(f"SUCCESS! Email sent successfully! accepted_count={sent_count}")
 except Exception as e:
     print(f"ERROR: {type(e).__name__}: {str(e)}")
     print("\nCommon issues:")
