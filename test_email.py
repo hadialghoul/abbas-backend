@@ -37,3 +37,4 @@ except Exception as e:
     print("3. 2FA enabled - you may need an app password")
     print("4. Email provider - check if your domain uses Google Workspace (smtp.gmail.com)")
 
+

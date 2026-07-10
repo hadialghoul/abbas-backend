@@ -15,3 +15,4 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'primefix_backend.settings')
 
 application = get_asgi_application()
 
+

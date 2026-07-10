@@ -3,7 +3,13 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 from django.conf import settings
+from django.core.mail import BadHeaderError
+from smtplib import SMTPException
 import json
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 @csrf_exempt
@@ -21,9 +27,6 @@ def submit_contact_form(request):
     """
     Handle contact form submissions and send email.
     """
-    # Log that we received the request
-    import logging
-    logger = logging.getLogger(__name__)
     logger.info(f'=== VIEW CALLED === Method: {request.method}, Path: {request.path}, Content-Type: {request.content_type}')
     
     if request.method != 'POST':
@@ -41,8 +44,6 @@ def submit_contact_form(request):
         data = json.loads(body)
         
         # Debug logging
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(f'Received data: {data}')
         
         # Extract form fields
@@ -60,6 +61,13 @@ def submit_contact_form(request):
                 'success': False,
                 'message': f'All fields are required. Received: name="{name}", email="{email}", mobile="{mobile}", service="{service}"'
             }, status=400)
+
+        if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD or not settings.RECIPIENT_EMAIL:
+            logger.error('Email settings are incomplete. Configure EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, and RECIPIENT_EMAIL.')
+            return JsonResponse({
+                'success': False,
+                'message': 'Email service is not configured correctly. Please contact support.'
+            }, status=500)
         
         # Email subject
         subject = f'New Contact Form Submission from {name}'
@@ -77,29 +85,18 @@ def submit_contact_form(request):
         This is an automated message from your website contact form.
         """
         
-        # Send email with timeout protection - use threading to avoid blocking
-        import threading
-        
-        def send_email_async():
-            try:
-                logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
-                send_mail(
-                    subject=subject,
-                    message=message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[settings.RECIPIENT_EMAIL],
-                    fail_silently=False,
-                )
-                logger.info('Email sent successfully')
-            except Exception as e:
-                logger.error(f'Email send error: {str(e)}', exc_info=True)
-        
-        # Start email sending in background thread
-        email_thread = threading.Thread(target=send_email_async)
-        email_thread.daemon = True
-        email_thread.start()
-        
-        # Return success immediately (don't wait for email)
+        # Send synchronously so API response reflects real delivery status.
+        # If SMTP fails, return an error instead of a false success.
+        logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[settings.RECIPIENT_EMAIL],
+            fail_silently=False,
+        )
+        logger.info('Email sent successfully')
+
         return JsonResponse({
             'success': True,
             'message': 'Thank you for your submission! We will get back to you soon.'
@@ -111,10 +108,13 @@ def submit_contact_form(request):
             'success': False,
             'message': f'Invalid JSON data. Error: {str(e)}, Body: {body_str[:200]}'
         }, status=400)
+    except (SMTPException, BadHeaderError) as e:
+        logger.error(f'Email send error: {str(e)}', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': 'We could not send your request email right now. Please try again shortly.'
+        }, status=500)
     except Exception as e:
-        import logging
-        import traceback
-        logger = logging.getLogger(__name__)
         logger.error(f'Unexpected error: {str(e)}', exc_info=True)
         return JsonResponse({
             'success': False,

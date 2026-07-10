@@ -115,10 +115,10 @@ EMAIL_HOST = 'smtp.office365.com'  # Office 365 SMTP server
 EMAIL_PORT = 587
 EMAIL_USE_SSL = False
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'info@primefixusa.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'Primefixusa@11274')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'info@primefixusa.com')
-RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', 'info@primefixusa.com')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', EMAIL_HOST_USER)
 EMAIL_TIMEOUT = 15  # 15 second timeout
 
 # Microsoft Email Setup Instructions:
