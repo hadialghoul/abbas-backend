@@ -149,12 +149,21 @@ def _send_email_brevo(subject, message, reply_to_email=None):
     try:
         with urlrequest.urlopen(request_obj, timeout=settings.EMAIL_TIMEOUT) as response:
             status_code = response.getcode()
+            response_body = response.read().decode('utf-8', errors='ignore')
     except urlerror.HTTPError as ex:
         response_body = ex.read().decode('utf-8', errors='ignore')
         raise RuntimeError(f'Brevo send failed with HTTP {ex.code}: {response_body[:300]}')
 
     if status_code not in (200, 201, 202):
         raise RuntimeError(f'Brevo send returned unexpected status {status_code}.')
+
+    try:
+        parsed = json.loads(response_body) if response_body else {}
+        message_id = parsed.get('messageId')
+        if message_id:
+            logger.info(f'Brevo accepted messageId={message_id}')
+    except Exception:
+        logger.warning('Brevo response parsing failed; could not extract messageId.', exc_info=True)
 
     return 1
 
