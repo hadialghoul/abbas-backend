@@ -6,9 +6,22 @@ from django.core.mail import get_connection, EmailMessage
 from smtplib import SMTPException
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 
 logger = logging.getLogger(__name__)
+
+
+def _send_email(subject, message):
+    connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
+    email_message = EmailMessage(
+        subject=subject,
+        body=message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[settings.RECIPIENT_EMAIL],
+        connection=connection,
+    )
+    return email_message.send(fail_silently=False)
 
 
 @csrf_exempt
@@ -86,21 +99,22 @@ def submit_contact_form(request):
         
         logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
         try:
-            connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
-            email_message = EmailMessage(
-                subject=subject,
-                body=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[settings.RECIPIENT_EMAIL],
-                connection=connection,
-            )
-            sent_count = email_message.send(fail_silently=False)
+            hard_timeout = min(max(int(settings.EMAIL_TIMEOUT), 3), 20)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_send_email, subject, message)
+                sent_count = future.result(timeout=hard_timeout)
             if sent_count < 1:
                 logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
                 return JsonResponse({
                     'success': False,
                     'message': 'We could not send your request email right now. Please try again shortly.'
                 }, status=500)
+        except FutureTimeoutError:
+            logger.error('Email send exceeded timeout window and was aborted.')
+            return JsonResponse({
+                'success': False,
+                'message': 'Email service timed out. Please try again shortly.'
+            }, status=504)
         except Exception as ex:
             logger.error(f'Email send error: {str(ex)}', exc_info=True)
             return JsonResponse({
