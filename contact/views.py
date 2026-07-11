@@ -77,7 +77,13 @@ def _send_email(subject, message):
     if provider == 'sendgrid':
         return _send_email_sendgrid(subject, message)
     if provider == 'smtp':
-        return _send_email_smtp(subject, message)
+        try:
+            return _send_email_smtp(subject, message)
+        except Exception:
+            if settings.SENDGRID_API_KEY:
+                logger.warning('SMTP send failed, retrying with SendGrid fallback.', exc_info=True)
+                return _send_email_sendgrid(subject, message)
+            raise
 
     raise RuntimeError(f'Unsupported EMAIL_PROVIDER: {provider}')
 
@@ -164,6 +170,7 @@ def submit_contact_form(request):
         """
         
         logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
+        logger.info(f'Email provider in use: {settings.EMAIL_PROVIDER}')
         try:
             hard_timeout = min(max(int(settings.EMAIL_TIMEOUT), 3), 20)
             result_queue = queue.Queue(maxsize=1)
