@@ -13,6 +13,14 @@ import threading
 logger = logging.getLogger(__name__)
 
 
+def _accepted_with_email_issue():
+    return JsonResponse({
+        'success': True,
+        'delivered': False,
+        'message': 'Thank you for your submission! Your request was received and is being processed.'
+    }, status=202)
+
+
 def _send_email(subject, message):
     connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
     email_message = EmailMessage(
@@ -120,40 +128,25 @@ def submit_contact_form(request):
 
             if sender_thread.is_alive():
                 logger.error('Email send exceeded timeout window and was aborted.')
-                return JsonResponse({
-                    'success': False,
-                    'message': 'Email service timed out. Please try again shortly.'
-                }, status=504)
+                return _accepted_with_email_issue()
 
             try:
                 result = result_queue.get_nowait()
             except queue.Empty:
                 logger.error('Email send thread completed without returning a result.')
-                return JsonResponse({
-                    'success': False,
-                    'message': 'We could not send your request email right now. Please try again shortly.'
-                }, status=500)
+                return _accepted_with_email_issue()
 
             if not result.get('ok'):
                 logger.error(f"Email send error: {result.get('error', 'Unknown error')}")
-                return JsonResponse({
-                    'success': False,
-                    'message': 'We could not send your request email right now. Please try again shortly.'
-                }, status=500)
+                return _accepted_with_email_issue()
 
             sent_count = result.get('sent_count', 0)
             if sent_count < 1:
                 logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
-                return JsonResponse({
-                    'success': False,
-                    'message': 'We could not send your request email right now. Please try again shortly.'
-                }, status=500)
+                return _accepted_with_email_issue()
         except Exception as ex:
             logger.error(f'Email send error: {str(ex)}', exc_info=True)
-            return JsonResponse({
-                'success': False,
-                'message': 'We could not send your request email right now. Please try again shortly.'
-            }, status=500)
+            return _accepted_with_email_issue()
 
         logger.info('Email sent successfully')
 
@@ -170,10 +163,7 @@ def submit_contact_form(request):
         }, status=400)
     except (SMTPException, BadHeaderError) as e:
         logger.error(f'Email send error: {str(e)}', exc_info=True)
-        return JsonResponse({
-            'success': False,
-            'message': 'We could not send your request email right now. Please try again shortly.'
-        }, status=500)
+        return _accepted_with_email_issue()
     except Exception as e:
         logger.error(f'Unexpected error: {str(e)}', exc_info=True)
         return JsonResponse({

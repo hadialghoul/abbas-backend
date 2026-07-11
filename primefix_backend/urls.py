@@ -3,6 +3,7 @@ URL configuration for primefix_backend project.
 """
 from django.urls import path, include
 from django.http import JsonResponse
+from django.http import HttpResponse
 
 
 def root(request):
@@ -11,6 +12,11 @@ def root(request):
 
 def healthz(request):
     return JsonResponse({'ok': True})
+
+
+def robots_txt(request):
+    content = "User-agent: *\nAllow: /\n"
+    return HttpResponse(content, content_type='text/plain')
 
 def handler400(request, exception):
     return JsonResponse({'error': 'Bad Request', 'detail': str(exception)}, status=400)
@@ -21,6 +27,7 @@ def handler500(request):
 urlpatterns = [
     path('', root),
     path('healthz/', healthz),
+    path('robots.txt', robots_txt),
     path('api/', include('contact.urls')),
 ]
 
