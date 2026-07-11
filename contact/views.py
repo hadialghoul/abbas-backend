@@ -9,6 +9,8 @@ import logging
 import queue
 import threading
 
+from .models import ContactSubmission
+
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +95,18 @@ def submit_contact_form(request):
                 'message': f'All fields are required. Received: name="{name}", email="{email}", mobile="{mobile}", service="{service}"'
             }, status=400)
 
+        submission = ContactSubmission.objects.create(
+            name=name,
+            email=email,
+            mobile=mobile,
+            service=service,
+        )
+
         if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD or not settings.RECIPIENT_EMAIL:
             logger.error('Email settings are incomplete. Configure EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, and RECIPIENT_EMAIL.')
+            submission.delivery_status = ContactSubmission.DELIVERY_FAILED
+            submission.delivery_error = 'Email settings are incomplete.'
+            submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
             return JsonResponse({
                 'success': False,
                 'message': 'Email service is not configured correctly. Please contact support.'
@@ -130,25 +142,45 @@ def submit_contact_form(request):
 
             if sender_thread.is_alive():
                 logger.error('Email send exceeded timeout window and was aborted.')
+                submission.delivery_status = ContactSubmission.DELIVERY_FAILED
+                submission.delivery_error = 'Email send exceeded timeout window.'
+                submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
                 return _accepted_with_email_issue()
 
             try:
                 result = result_queue.get_nowait()
             except queue.Empty:
                 logger.error('Email send thread completed without returning a result.')
+                submission.delivery_status = ContactSubmission.DELIVERY_FAILED
+                submission.delivery_error = 'Email send thread completed without returning a result.'
+                submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
                 return _accepted_with_email_issue()
 
             if not result.get('ok'):
-                logger.error(f"Email send error: {result.get('error', 'Unknown error')}")
+                error_message = result.get('error', 'Unknown error')
+                logger.error(f"Email send error: {error_message}")
+                submission.delivery_status = ContactSubmission.DELIVERY_FAILED
+                submission.delivery_error = error_message
+                submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
                 return _accepted_with_email_issue()
 
             sent_count = result.get('sent_count', 0)
             if sent_count < 1:
                 logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
+                submission.delivery_status = ContactSubmission.DELIVERY_FAILED
+                submission.delivery_error = 'SMTP call completed but no email was accepted by the server.'
+                submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
                 return _accepted_with_email_issue()
         except Exception as ex:
             logger.error(f'Email send error: {str(ex)}', exc_info=True)
+            submission.delivery_status = ContactSubmission.DELIVERY_FAILED
+            submission.delivery_error = str(ex)
+            submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
             return _accepted_with_email_issue()
+
+        submission.delivery_status = ContactSubmission.DELIVERY_SENT
+        submission.delivery_error = ''
+        submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
 
         logger.info('Email sent successfully')
 
