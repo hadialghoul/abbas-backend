@@ -108,27 +108,25 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1",
 ]
 
-# Email configuration - Using Office 365 SMTP (more reliable for cloud hosting)
-# Since SMTP AUTH is enabled in your GoDaddy/Office 365 account, use Office 365 SMTP
+# Email configuration - provider-agnostic SMTP via environment variables
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.office365.com'  # Office 365 SMTP server
-EMAIL_PORT = 587
-EMAIL_USE_SSL = False
-EMAIL_USE_TLS = True
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.office365.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', EMAIL_HOST_USER)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '8'))
 
-# Microsoft Email Setup Instructions:
-# 1. EMAIL_HOST_USER: Enter your full Microsoft email address (e.g., 'yourname@outlook.com')
-# 2. EMAIL_HOST_PASSWORD: 
-#    - If you DON'T have 2-factor authentication: Use your regular email password
-#    - If you HAVE 2-factor authentication enabled: 
-#      * Go to https://account.microsoft.com/security
-#      * Click "Advanced security options"
-#      * Under "App passwords", create a new app password
-#      * Use that app password here
-# 3. DEFAULT_FROM_EMAIL: Should match your EMAIL_HOST_USER (the email sending from)
+# Example SMTP env vars for a non-Office365 provider:
+# EMAIL_HOST=smtp.provider.com
+# EMAIL_PORT=587
+# EMAIL_USE_TLS=True
+# EMAIL_USE_SSL=False
+# EMAIL_HOST_USER=your-smtp-username
+# EMAIL_HOST_PASSWORD=your-smtp-password
+# DEFAULT_FROM_EMAIL=your-sender@domain.com
+# RECIPIENT_EMAIL=your-inbox@domain.com
 
