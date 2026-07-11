@@ -8,6 +8,9 @@ import json
 import logging
 import queue
 import threading
+from urllib import parse as urlparse
+from urllib import request as urlrequest
+from urllib import error as urlerror
 
 from .models import ContactSubmission
 
@@ -23,7 +26,7 @@ def _accepted_with_email_issue():
     }, status=202)
 
 
-def _send_email(subject, message, reply_to_email=None):
+def _send_email_smtp(subject, message, reply_to_email=None):
     connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
     reply_to = [reply_to_email] if reply_to_email else None
     email_message = EmailMessage(
@@ -35,6 +38,96 @@ def _send_email(subject, message, reply_to_email=None):
         reply_to=reply_to,
     )
     return email_message.send(fail_silently=False)
+
+
+def _get_graph_access_token():
+    token_url = (
+        f'https://login.microsoftonline.com/{settings.MS_GRAPH_TENANT_ID}'
+        '/oauth2/v2.0/token'
+    )
+    token_data = urlparse.urlencode({
+        'client_id': settings.MS_GRAPH_CLIENT_ID,
+        'client_secret': settings.MS_GRAPH_CLIENT_SECRET,
+        'scope': 'https://graph.microsoft.com/.default',
+        'grant_type': 'client_credentials',
+    }).encode('utf-8')
+
+    request_obj = urlrequest.Request(
+        token_url,
+        data=token_data,
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        method='POST',
+    )
+
+    with urlrequest.urlopen(request_obj, timeout=settings.EMAIL_TIMEOUT) as response:
+        payload = json.loads(response.read().decode('utf-8'))
+
+    access_token = payload.get('access_token')
+    if not access_token:
+        raise RuntimeError('Microsoft Graph token response did not include access_token.')
+
+    return access_token
+
+
+def _send_email_graph(subject, message, reply_to_email=None):
+    access_token = _get_graph_access_token()
+    sender_user = urlparse.quote(settings.MS_GRAPH_SENDER_USER)
+    send_url = f'https://graph.microsoft.com/v1.0/users/{sender_user}/sendMail'
+
+    message_payload = {
+        'message': {
+            'subject': subject,
+            'body': {
+                'contentType': 'Text',
+                'content': message,
+            },
+            'toRecipients': [
+                {'emailAddress': {'address': settings.RECIPIENT_EMAIL}}
+            ],
+        },
+        'saveToSentItems': True,
+    }
+
+    if reply_to_email:
+        message_payload['message']['replyTo'] = [
+            {'emailAddress': {'address': reply_to_email}}
+        ]
+
+    request_obj = urlrequest.Request(
+        send_url,
+        data=json.dumps(message_payload).encode('utf-8'),
+        headers={
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json',
+        },
+        method='POST',
+    )
+
+    try:
+        with urlrequest.urlopen(request_obj, timeout=settings.EMAIL_TIMEOUT) as response:
+            status_code = response.getcode()
+    except urlerror.HTTPError as ex:
+        response_body = ex.read().decode('utf-8', errors='ignore')
+        raise RuntimeError(f'Microsoft Graph sendMail failed with HTTP {ex.code}: {response_body[:300]}')
+
+    if status_code not in (200, 202):
+        raise RuntimeError(f'Microsoft Graph sendMail returned unexpected status {status_code}.')
+
+    return 1
+
+
+def _send_email(subject, message, reply_to_email=None):
+    if settings.USE_MICROSOFT_GRAPH:
+        return _send_email_graph(subject, message, reply_to_email=reply_to_email)
+
+    return _send_email_smtp(subject, message, reply_to_email=reply_to_email)
+
+
+def _email_transport_is_configured():
+    if settings.USE_MICROSOFT_GRAPH:
+        return True
+
+    return bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD and settings.RECIPIENT_EMAIL)
 
 
 def _send_email_with_capture(result_queue, subject, message, reply_to_email):
@@ -102,8 +195,8 @@ def submit_contact_form(request):
             service=service,
         )
 
-        if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD or not settings.RECIPIENT_EMAIL:
-            logger.error('Email settings are incomplete. Configure EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, and RECIPIENT_EMAIL.')
+        if not _email_transport_is_configured():
+            logger.error('Email settings are incomplete. Configure SMTP credentials or Microsoft Graph credentials and RECIPIENT_EMAIL.')
             submission.delivery_status = ContactSubmission.DELIVERY_FAILED
             submission.delivery_error = 'Email settings are incomplete.'
             submission.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])

@@ -119,6 +119,18 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', EMAIL_HOST_USER)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '8'))
+MS_GRAPH_TENANT_ID = os.environ.get('MS_GRAPH_TENANT_ID', '')
+MS_GRAPH_CLIENT_ID = os.environ.get('MS_GRAPH_CLIENT_ID', '')
+MS_GRAPH_CLIENT_SECRET = os.environ.get('MS_GRAPH_CLIENT_SECRET', '')
+MS_GRAPH_SENDER_USER = os.environ.get('MS_GRAPH_SENDER_USER', EMAIL_HOST_USER)
+
+USE_MICROSOFT_GRAPH = all([
+    MS_GRAPH_TENANT_ID,
+    MS_GRAPH_CLIENT_ID,
+    MS_GRAPH_CLIENT_SECRET,
+    MS_GRAPH_SENDER_USER,
+    RECIPIENT_EMAIL,
+])
 
 # Example SMTP env vars for a non-Office365 provider:
 # EMAIL_HOST=smtp.provider.com
@@ -129,4 +141,9 @@ EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '8'))
 # EMAIL_HOST_PASSWORD=your-smtp-password
 # DEFAULT_FROM_EMAIL=your-sender@domain.com
 # RECIPIENT_EMAIL=your-inbox@domain.com
+# For Microsoft Graph instead of SMTP, set:
+# MS_GRAPH_TENANT_ID=your-azure-tenant-id
+# MS_GRAPH_CLIENT_ID=your-app-client-id
+# MS_GRAPH_CLIENT_SECRET=your-app-client-secret
+# MS_GRAPH_SENDER_USER=info@yourdomain.com
 
