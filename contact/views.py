@@ -119,15 +119,65 @@ def _send_email_graph(subject, message, reply_to_email=None):
     return 1
 
 
+def _send_email_brevo(subject, message, reply_to_email=None):
+    payload = {
+        'sender': {
+            'name': settings.BREVO_SENDER_NAME,
+            'email': settings.BREVO_SENDER_EMAIL,
+        },
+        'to': [
+            {'email': settings.RECIPIENT_EMAIL}
+        ],
+        'subject': subject,
+        'textContent': message,
+    }
+
+    if reply_to_email:
+        payload['replyTo'] = {'email': reply_to_email}
+
+    request_obj = urlrequest.Request(
+        'https://api.brevo.com/v3/smtp/email',
+        data=json.dumps(payload).encode('utf-8'),
+        headers={
+            'api-key': settings.BREVO_API_KEY,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        method='POST',
+    )
+
+    try:
+        with urlrequest.urlopen(request_obj, timeout=settings.EMAIL_TIMEOUT) as response:
+            status_code = response.getcode()
+    except urlerror.HTTPError as ex:
+        response_body = ex.read().decode('utf-8', errors='ignore')
+        raise RuntimeError(f'Brevo send failed with HTTP {ex.code}: {response_body[:300]}')
+
+    if status_code not in (200, 201, 202):
+        raise RuntimeError(f'Brevo send returned unexpected status {status_code}.')
+
+    return 1
+
+
 def _send_email(subject, message, reply_to_email=None):
-    if settings.USE_MICROSOFT_GRAPH:
+    provider = (settings.EMAIL_PROVIDER or 'smtp').lower()
+
+    if provider == 'brevo':
+        return _send_email_brevo(subject, message, reply_to_email=reply_to_email)
+
+    if provider == 'graph' or settings.USE_MICROSOFT_GRAPH:
         return _send_email_graph(subject, message, reply_to_email=reply_to_email)
 
     return _send_email_smtp(subject, message, reply_to_email=reply_to_email)
 
 
 def _email_transport_is_configured():
-    if settings.USE_MICROSOFT_GRAPH:
+    provider = (settings.EMAIL_PROVIDER or 'smtp').lower()
+
+    if provider == 'brevo':
+        return bool(settings.BREVO_API_KEY and settings.BREVO_SENDER_EMAIL and settings.RECIPIENT_EMAIL)
+
+    if provider == 'graph' or settings.USE_MICROSOFT_GRAPH:
         return True
 
     return bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD and settings.RECIPIENT_EMAIL)

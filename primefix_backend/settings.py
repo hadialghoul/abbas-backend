@@ -109,6 +109,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Email configuration - provider-agnostic SMTP via environment variables
+EMAIL_PROVIDER = os.environ.get('EMAIL_PROVIDER', '').strip().lower()
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.office365.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
@@ -124,6 +125,9 @@ MS_GRAPH_CLIENT_ID = os.environ.get('MS_GRAPH_CLIENT_ID', '')
 MS_GRAPH_CLIENT_SECRET = os.environ.get('MS_GRAPH_CLIENT_SECRET', '')
 MS_GRAPH_SENDER_USER = os.environ.get('MS_GRAPH_SENDER_USER', EMAIL_HOST_USER)
 SMTP_DIAG_TOKEN = os.environ.get('SMTP_DIAG_TOKEN', '')
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', DEFAULT_FROM_EMAIL)
+BREVO_SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'Primefix')
 
 USE_MICROSOFT_GRAPH = all([
     MS_GRAPH_TENANT_ID,
@@ -132,6 +136,16 @@ USE_MICROSOFT_GRAPH = all([
     MS_GRAPH_SENDER_USER,
     RECIPIENT_EMAIL,
 ])
+
+USE_BREVO = bool(BREVO_API_KEY and BREVO_SENDER_EMAIL and RECIPIENT_EMAIL)
+
+if not EMAIL_PROVIDER:
+    if USE_BREVO:
+        EMAIL_PROVIDER = 'brevo'
+    elif USE_MICROSOFT_GRAPH:
+        EMAIL_PROVIDER = 'graph'
+    else:
+        EMAIL_PROVIDER = 'smtp'
 
 # Example SMTP env vars for a non-Office365 provider:
 # EMAIL_HOST=smtp.provider.com
@@ -147,4 +161,9 @@ USE_MICROSOFT_GRAPH = all([
 # MS_GRAPH_CLIENT_ID=your-app-client-id
 # MS_GRAPH_CLIENT_SECRET=your-app-client-secret
 # MS_GRAPH_SENDER_USER=info@yourdomain.com
+# For Brevo API instead of SMTP, set:
+# EMAIL_PROVIDER=brevo
+# BREVO_API_KEY=your-brevo-api-key
+# BREVO_SENDER_EMAIL=info@yourdomain.com
+# BREVO_SENDER_NAME=Primefix
 
