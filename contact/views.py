@@ -8,6 +8,9 @@ import json
 import logging
 import queue
 import threading
+import socket
+import smtplib
+import time
 from urllib import parse as urlparse
 from urllib import request as urlrequest
 from urllib import error as urlerror
@@ -146,6 +149,94 @@ def test_endpoint(request):
         'message': 'Backend is working!',
         'method': request.method
     })
+
+
+@csrf_exempt
+def smtp_diagnostic(request):
+    """Run step-by-step SMTP diagnostics to find the failing stage on the runtime host."""
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET method is allowed.'}, status=405)
+
+    token = request.GET.get('token', '')
+    if not settings.SMTP_DIAG_TOKEN or token != settings.SMTP_DIAG_TOKEN:
+        return JsonResponse({'success': False, 'message': 'Unauthorized.'}, status=401)
+
+    host = settings.EMAIL_HOST
+    port = int(settings.EMAIL_PORT)
+    timeout = int(settings.EMAIL_TIMEOUT)
+    result = {
+        'success': False,
+        'host': host,
+        'port': port,
+        'timeout': timeout,
+        'use_tls': bool(settings.EMAIL_USE_TLS),
+        'use_ssl': bool(settings.EMAIL_USE_SSL),
+        'stages': [],
+    }
+
+    smtp_client = None
+    start_time = time.time()
+
+    try:
+        dns_start = time.time()
+        resolved = socket.getaddrinfo(host, port)
+        result['stages'].append({
+            'stage': 'dns_resolve',
+            'ok': True,
+            'elapsed_ms': int((time.time() - dns_start) * 1000),
+            'ip_count': len(resolved),
+        })
+
+        connect_start = time.time()
+        if settings.EMAIL_USE_SSL:
+            smtp_client = smtplib.SMTP_SSL(host=host, port=port, timeout=timeout)
+        else:
+            smtp_client = smtplib.SMTP(host=host, port=port, timeout=timeout)
+
+        code, _ = smtp_client.ehlo()
+        result['stages'].append({
+            'stage': 'connect_ehlo',
+            'ok': True,
+            'elapsed_ms': int((time.time() - connect_start) * 1000),
+            'smtp_code': code,
+        })
+
+        if settings.EMAIL_USE_TLS and not settings.EMAIL_USE_SSL:
+            tls_start = time.time()
+            code, _ = smtp_client.starttls()
+            smtp_client.ehlo()
+            result['stages'].append({
+                'stage': 'starttls',
+                'ok': True,
+                'elapsed_ms': int((time.time() - tls_start) * 1000),
+                'smtp_code': code,
+            })
+
+        login_start = time.time()
+        smtp_client.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
+        result['stages'].append({
+            'stage': 'auth_login',
+            'ok': True,
+            'elapsed_ms': int((time.time() - login_start) * 1000),
+        })
+
+        result['success'] = True
+        result['message'] = 'SMTP diagnostic completed successfully.'
+        result['total_elapsed_ms'] = int((time.time() - start_time) * 1000)
+        return JsonResponse(result, status=200)
+    except Exception as ex:
+        result['message'] = 'SMTP diagnostic failed.'
+        result['error_type'] = type(ex).__name__
+        result['error'] = str(ex)
+        result['total_elapsed_ms'] = int((time.time() - start_time) * 1000)
+        logger.error('SMTP diagnostic failed', exc_info=True)
+        return JsonResponse(result, status=200)
+    finally:
+        if smtp_client is not None:
+            try:
+                smtp_client.quit()
+            except Exception:
+                pass
 
 
 @csrf_exempt
