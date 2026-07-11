@@ -6,7 +6,8 @@ from django.core.mail import get_connection, EmailMessage
 from smtplib import SMTPException
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import queue
+import threading
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,14 @@ def _send_email(subject, message):
         connection=connection,
     )
     return email_message.send(fail_silently=False)
+
+
+def _send_email_with_capture(result_queue, subject, message):
+    try:
+        sent_count = _send_email(subject, message)
+        result_queue.put({'ok': True, 'sent_count': sent_count})
+    except Exception as ex:
+        result_queue.put({'ok': False, 'error': str(ex)})
 
 
 @csrf_exempt
@@ -100,21 +109,45 @@ def submit_contact_form(request):
         logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
         try:
             hard_timeout = min(max(int(settings.EMAIL_TIMEOUT), 3), 20)
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_send_email, subject, message)
-                sent_count = future.result(timeout=hard_timeout)
+            result_queue = queue.Queue(maxsize=1)
+            sender_thread = threading.Thread(
+                target=_send_email_with_capture,
+                args=(result_queue, subject, message),
+                daemon=True,
+            )
+            sender_thread.start()
+            sender_thread.join(timeout=hard_timeout)
+
+            if sender_thread.is_alive():
+                logger.error('Email send exceeded timeout window and was aborted.')
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Email service timed out. Please try again shortly.'
+                }, status=504)
+
+            try:
+                result = result_queue.get_nowait()
+            except queue.Empty:
+                logger.error('Email send thread completed without returning a result.')
+                return JsonResponse({
+                    'success': False,
+                    'message': 'We could not send your request email right now. Please try again shortly.'
+                }, status=500)
+
+            if not result.get('ok'):
+                logger.error(f"Email send error: {result.get('error', 'Unknown error')}")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'We could not send your request email right now. Please try again shortly.'
+                }, status=500)
+
+            sent_count = result.get('sent_count', 0)
             if sent_count < 1:
                 logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
                 return JsonResponse({
                     'success': False,
                     'message': 'We could not send your request email right now. Please try again shortly.'
                 }, status=500)
-        except FutureTimeoutError:
-            logger.error('Email send exceeded timeout window and was aborted.')
-            return JsonResponse({
-                'success': False,
-                'message': 'Email service timed out. Please try again shortly.'
-            }, status=504)
         except Exception as ex:
             logger.error(f'Email send error: {str(ex)}', exc_info=True)
             return JsonResponse({
