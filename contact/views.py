@@ -8,8 +8,6 @@ import json
 import logging
 import queue
 import threading
-from urllib import error as urlerror
-from urllib import request as urlrequest
 
 
 logger = logging.getLogger(__name__)
@@ -23,74 +21,23 @@ def _accepted_with_email_issue():
     }, status=202)
 
 
-def _send_email_smtp(subject, message):
+def _send_email(subject, message, reply_to_email=None):
     connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
+    reply_to = [reply_to_email] if reply_to_email else None
     email_message = EmailMessage(
         subject=subject,
         body=message,
         from_email=settings.DEFAULT_FROM_EMAIL,
         to=[settings.RECIPIENT_EMAIL],
         connection=connection,
+        reply_to=reply_to,
     )
     return email_message.send(fail_silently=False)
 
 
-def _send_email_sendgrid(subject, message):
-    if not settings.SENDGRID_API_KEY:
-        raise RuntimeError('SENDGRID_API_KEY is not configured.')
-
-    from_email = settings.SENDGRID_FROM_EMAIL or settings.DEFAULT_FROM_EMAIL
-    payload = {
-        'personalizations': [{'to': [{'email': settings.RECIPIENT_EMAIL}]}],
-        'from': {'email': from_email},
-        'subject': subject,
-        'content': [{'type': 'text/plain', 'value': message}],
-    }
-
-    data = json.dumps(payload).encode('utf-8')
-    req = urlrequest.Request(
-        url='https://api.sendgrid.com/v3/mail/send',
-        data=data,
-        headers={
-            'Authorization': f'Bearer {settings.SENDGRID_API_KEY}',
-            'Content-Type': 'application/json',
-        },
-        method='POST',
-    )
-
+def _send_email_with_capture(result_queue, subject, message, reply_to_email):
     try:
-        with urlrequest.urlopen(req, timeout=settings.EMAIL_TIMEOUT) as response:
-            status_code = response.getcode()
-    except urlerror.HTTPError as ex:
-        response_body = ex.read().decode('utf-8', errors='ignore')
-        raise RuntimeError(f'SendGrid HTTP {ex.code}: {response_body[:300]}')
-
-    if status_code not in (200, 202):
-        raise RuntimeError(f'SendGrid returned unexpected status {status_code}.')
-
-    return 1
-
-
-def _send_email(subject, message):
-    provider = (settings.EMAIL_PROVIDER or 'smtp').lower()
-
-    if provider == 'sendgrid':
-        return _send_email_sendgrid(subject, message)
-    if provider == 'smtp':
-        try:
-            return _send_email_smtp(subject, message)
-        except Exception:
-            if settings.SENDGRID_API_KEY:
-                logger.warning('SMTP send failed, retrying with SendGrid fallback.', exc_info=True)
-                return _send_email_sendgrid(subject, message)
-            raise
-
-    raise RuntimeError(f'Unsupported EMAIL_PROVIDER: {provider}')
-
-
-def _send_email_with_capture(result_queue, subject, message):
-    try:
-        sent_count = _send_email(subject, message)
+        sent_count = _send_email(subject, message, reply_to_email=reply_to_email)
         result_queue.put({'ok': True, 'sent_count': sent_count})
     except Exception as ex:
         result_queue.put({'ok': False, 'error': str(ex)})
@@ -170,13 +117,12 @@ def submit_contact_form(request):
         """
         
         logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
-        logger.info(f'Email provider in use: {settings.EMAIL_PROVIDER}')
         try:
             hard_timeout = min(max(int(settings.EMAIL_TIMEOUT), 3), 20)
             result_queue = queue.Queue(maxsize=1)
             sender_thread = threading.Thread(
                 target=_send_email_with_capture,
-                args=(result_queue, subject, message),
+                args=(result_queue, subject, message, email),
                 daemon=True,
             )
             sender_thread.start()

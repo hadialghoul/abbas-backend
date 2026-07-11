@@ -110,7 +110,6 @@ CORS_ALLOWED_ORIGINS = [
 
 # Email configuration - Using Office 365 SMTP (more reliable for cloud hosting)
 # Since SMTP AUTH is enabled in your GoDaddy/Office 365 account, use Office 365 SMTP
-EMAIL_PROVIDER = os.environ.get('EMAIL_PROVIDER', '').strip().lower()
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.office365.com'  # Office 365 SMTP server
 EMAIL_PORT = 587
@@ -121,11 +120,6 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', EMAIL_HOST_USER)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '8'))
-SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
-SENDGRID_FROM_EMAIL = os.environ.get('SENDGRID_FROM_EMAIL', DEFAULT_FROM_EMAIL)
-
-if not EMAIL_PROVIDER:
-    EMAIL_PROVIDER = 'sendgrid' if SENDGRID_API_KEY else 'smtp'
 
 # Microsoft Email Setup Instructions:
 # 1. EMAIL_HOST_USER: Enter your full Microsoft email address (e.g., 'yourname@outlook.com')
