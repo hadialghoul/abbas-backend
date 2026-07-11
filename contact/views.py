@@ -1,14 +1,11 @@
-from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.core.mail import send_mail
 from django.conf import settings
 from django.core.mail import BadHeaderError
 from django.core.mail import get_connection, EmailMessage
 from smtplib import SMTPException
 import json
 import logging
-import threading
 
 
 logger = logging.getLogger(__name__)
@@ -87,51 +84,31 @@ def submit_contact_form(request):
         This is an automated message from your website contact form.
         """
         
-        # Send synchronously so API response reflects real delivery status.
-        # If SMTP fails, return an error instead of a false success.
         logger.info(f'Attempting to send email to {settings.RECIPIENT_EMAIL}')
-
-        email_result = {'ok': None, 'error': None}
-
-        def _send_email_job():
-            try:
-                connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
-                email_message = EmailMessage(
-                    subject=subject,
-                    body=message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    to=[settings.RECIPIENT_EMAIL],
-                    connection=connection,
-                )
-                sent_count = email_message.send(fail_silently=False)
-                if sent_count < 1:
-                    email_result['ok'] = False
-                    email_result['error'] = 'SMTP accepted 0 recipients.'
-                    logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
-                else:
-                    email_result['ok'] = True
-                    logger.info('Email sent successfully')
-            except Exception as ex:
-                email_result['ok'] = False
-                email_result['error'] = str(ex)
-                logger.error(f'Email send error: {str(ex)}', exc_info=True)
-
-        email_thread = threading.Thread(target=_send_email_job, daemon=True)
-        email_thread.start()
-        email_thread.join(timeout=6)
-
-        if email_thread.is_alive():
-            logger.warning('SMTP send is taking too long; returning early to avoid worker timeout.')
-            return JsonResponse({
-                'success': True,
-                'message': 'Thank you for your submission! Your request was received and is being processed.'
-            }, status=200)
-
-        if email_result['ok'] is False:
+        try:
+            connection = get_connection(timeout=settings.EMAIL_TIMEOUT)
+            email_message = EmailMessage(
+                subject=subject,
+                body=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[settings.RECIPIENT_EMAIL],
+                connection=connection,
+            )
+            sent_count = email_message.send(fail_silently=False)
+            if sent_count < 1:
+                logger.error('SMTP call completed but no email was accepted by the server (sent_count=0).')
+                return JsonResponse({
+                    'success': False,
+                    'message': 'We could not send your request email right now. Please try again shortly.'
+                }, status=500)
+        except Exception as ex:
+            logger.error(f'Email send error: {str(ex)}', exc_info=True)
             return JsonResponse({
                 'success': False,
                 'message': 'We could not send your request email right now. Please try again shortly.'
             }, status=500)
+
+        logger.info('Email sent successfully')
 
         return JsonResponse({
             'success': True,
